@@ -6,6 +6,14 @@ import numpy as np
 from random import random
 from plotly.graph_objs import *
 
+import plotly.plotly as py
+from plotly.tools import FigureFactory as FF
+from plotly.graph_objs import graph_objs
+import numpy as np
+import pandas as pd
+from scipy import stats
+
+
 class FeatureAnalyzer():
     def __init__(self, topics, feature_names):
         offline.init_notebook_mode()
@@ -19,7 +27,26 @@ class FeatureAnalyzer():
     
     def clear_data(self):
         self.x_data = None
-        self.y_data = None        
+        self.y_data = None
+        
+    def draw_violins(self):
+        interact(self._draw_violins, feature_name=self.feature_names.tolist(), size="1")
+
+    def _draw_violins(self, feature_name):
+        index = np.where(self.feature_names == feature_name)[0][0]
+        y = []
+        gr = []
+        for key in self.topics:
+            tmp = [x[index] for i, x in enumerate(self.x_data, 0) if key in self.y_data[i]]
+            y.extend(tmp)
+            gr.extend([key]*len(tmp))
+
+        df = pd.DataFrame(dict(Score = y, Group = gr))
+
+        fig = FF.create_violin(df, data_header='Score', group_header='Group',
+                               height=500, width=800, title='Violin Plot of ' + feature_name)
+        offline.iplot(fig)
+
     
     def _draw_histogram(self, feature_name, size):
         size = float(size)
@@ -61,11 +88,11 @@ class FeatureAnalyzer():
                     name = topic))
         layout = Layout(
             showlegend = True,
-            title='Hover over the points to see the text',
-            yaxis = dict(
+            title='Scatterplot ' + feature1 + ' versus ' + feature2,
+            xaxis = dict(
                 title=feature1,
             ),
-            xaxis = dict(
+            yaxis = dict(
                 title=feature2,
             ),
             hovermode = 'closest'

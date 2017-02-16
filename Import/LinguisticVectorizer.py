@@ -55,7 +55,7 @@ class LinguisticVectorizer(BaseEstimator):
     
     def _get_average_sent_length(self, string):
         tokens = self.__filter(string)
-        if len(sent_tokenize(string)) is 0:
+        if len(sent_tokenize(string)) == 0:
             return len(tokens)
         return len(tokens) / len(sent_tokenize(string))
     
@@ -81,29 +81,29 @@ class LinguisticVectorizer(BaseEstimator):
     # Stopwords?
     def _get_ttr(self, string):
         tokens = self.__filter(string)
-        if len(tokens) is 0:
+        if len(tokens) == 0:
             return 0
         return len(set(tokens)) / len(tokens)
 
     def _get_aq(self, string):
         adjectives = self._get_number_of_adjectives(string)
         verbs = self._get_number_of_verbs(string)
-        if adjectives is 0:
+        if adjectives == 0:
             return verbs
         return verbs / adjectives
 
     def _get_naq(self, string):
         adjectives = self._get_number_of_adjectives(string)
         verbs = self._get_number_of_verbs(string)
-        if adjectives is 0 and verbs is 0:
-            return 0
+        if adjectives == 0 and verbs == 0:
+            return 0.0
         return verbs / (adjectives + verbs)
 
     def _get_hl(self, string):
         words = self.__filter(string)
         fdist = nltk.FreqDist(words)
         hapaxes = fdist.hapaxes()
-        if len(words) is 0:
+        if len(words) == 0:
             return len(hapaxes)
         return len(hapaxes) / len(words)
 
@@ -113,14 +113,14 @@ class LinguisticVectorizer(BaseEstimator):
         sum = 0
         for word in fdist.most_common(n):
             sum += word[1]
-        if len(words) is 0:
+        if len(words) == 0:
             return sum
         return sum / len(words)
 
     def _get_nkoi(self, string, n, m):
         words = self.__filter(string)
         h = math.floor(len(words) / m)
-        if h is 0:
+        if h == 0:
             return self._get_koi(string, 15)
         sum = 0
         for i in range(h):
@@ -132,7 +132,7 @@ class LinguisticVectorizer(BaseEstimator):
         sum = 0
         for word in fdist.most_common(n):
             sum += word[1]
-        if len(words) is 0:
+        if len(words) == 0:
             return sum
         return sum / len(words)
     
@@ -154,7 +154,7 @@ class LinguisticVectorizer(BaseEstimator):
     def _get_content_fraction(self, string):
         tokens = self.__filter(string)
         content = [w for w in tokens if w.lower() not in stopwords.words('english')]
-        if len(tokens) is 0:
+        if len(tokens) == 0:
             return 0
         return len(content) / len(tokens)
     
@@ -163,13 +163,19 @@ class LinguisticVectorizer(BaseEstimator):
         return np.sum([t.isupper() for t in tokens if len(t) > 2]) / self._get_text_length(string)
     
     def _get_number_of_first_person_pronouns(self, string):
-        tokens = self.__filter(string)
-        pronouns = ["i","me","my", "mine", "myself"]
+        tokens = word_tokenize(string)
+        pronouns = ["i","me","my", "mine", "myself","we", "our", "ours", "ourself"]
         sum = 0
+        mode = 0
         for word in tokens:
-            if word.lower() in '\t'.join(pronouns):
+            if word == "``":
+                mode = mode + 1
+            elif word == "''":
+                mode = mode - 1
+            
+            if mode <= 0 and word.lower() in '\t'.join(pronouns):
                 sum += 1
-        return sum
+        return sum / len(tokens)
 
     def transform(self, documents):
         text_length = [self._get_text_length(d) for d in documents]
