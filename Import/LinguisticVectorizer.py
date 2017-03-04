@@ -5,6 +5,7 @@ from nltk import pos_tag
 from nltk.corpus import stopwords
 from nltk.tokenize import sent_tokenize, word_tokenize
 import numpy as np
+import string
 
 import re
 from collections import Counter
@@ -25,6 +26,7 @@ class LinguisticVectorizer(BaseEstimator):
              'number_of_nouns',
              'number_of_adjectives',
              'number_of_verbs',
+             'number_of_numbers',
              'type_token_relation',
              'concentration_index',
              'hapaxes_index',
@@ -44,7 +46,10 @@ class LinguisticVectorizer(BaseEstimator):
         return self
     
     def __filter(self, string):
-        return [w for w in word_tokenize(string) if w.isalpha()]
+        return [self.__remove_punctuation(w) for w in word_tokenize(string) if self.__remove_punctuation(w).isalpha()]
+    
+    def __remove_punctuation(self, s):
+        return s.translate(str.maketrans("", "", string.punctuation))
     
     def _get_text_length(self, string):
         tokens = self.__filter(string)
@@ -65,6 +70,25 @@ class LinguisticVectorizer(BaseEstimator):
         for word in tokens:
             word_length_list.append(len(word))
         return np.average(word_length_list)
+    
+    def is_number(self, s):
+        print(s)
+        try:
+            float(s)
+            return True
+        except ValueError:
+            pass
+        try:
+            import unicodedata
+            unicodedata.numeric(s)
+            return True
+        except (TypeError, ValueError):
+            pass
+        return False
+
+    
+    def _get_number_of_numbers(self, string):
+        return len([w for w in word_tokenize(string) if self.is_number(self.__remove_punctuation(w))])
 
     def _get_number_of_nouns(self, string):
         nouns = [a[0] for a in pos_tag(self.__filter(string)) if a[1] in ['NN', 'NNS', 'NNP', 'NNPS']]
@@ -198,6 +222,7 @@ class LinguisticVectorizer(BaseEstimator):
         content_fraction = [self._get_content_fraction(d) for d in documents]
         number_of_cappsed_words = [self._get_number_of_cappsed_words(d) for d in documents]
         number_of_first_person_pronouns = [self._get_number_of_first_person_pronouns(d) for d in documents]
+        number_of_numbers = [self._get_number_of_numbers(d) for d in documents]
 
         result = np.array(
             [text_length,
@@ -207,6 +232,7 @@ class LinguisticVectorizer(BaseEstimator):
              number_of_nouns,
              number_of_adjectives,
              number_of_verbs,
+             number_of_numbers,
              type_token_relation,
              concentration_index,
              hapaxes_index,

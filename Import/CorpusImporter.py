@@ -2,17 +2,22 @@ import tarfile,os
 import sys
 import gzip
 from contextlib import closing
-from xml.etree import ElementTree as etree
+from lxml import etree
 import re
 from collections import Counter
-from BaseImporter import *
-
+from .BaseImporter import *
 
 class CorpusImporter(BaseImporter):
+    DATA_FIELDS  =  [                
+                ('Text', 'String', 'Single', '/nitf/body/body.content/block[@class="full_text"]'),
+                ('Tags', 'String', 'Single', '/nitf/head/meta[@name="online_sections"]/@content'),
+                ('OnlineTitles', 'String', 'Multiple', '/nitf/head/docdata/identified-content/object.title[@class="online_producer"]'), 
+                ('Titles', 'String', 'Multiple', '/nitf/head/docdata/identified-content/object.title[@class="indexing_service"]')
+                ]
+    
     def __init__(self, path = '/home/retkowski/Private/newsDB.json'):
         self._db = TinyDB(path)
         self._Collection = []
-        self._Item = namedtuple("Item", ["title", "tags", "text"])   
         
     def _getTags(self, tags_input, is_multilabel, mapping, whitelist, blacklist ):
         tags = []
@@ -31,9 +36,6 @@ class CorpusImporter(BaseImporter):
                     if(maps[0] in whitelist):
                         tags.append(maps[0])
                         continue
-                    
-         
-        
         
         # Remove Double Tags
         tags = list(set(tags))
@@ -43,52 +45,61 @@ class CorpusImporter(BaseImporter):
                 tags = []
               
         
-        return tags
-    
-    def _extractElements(self, xmlfile, no_text, is_multilabel, mapping, whitelist, blacklist):
-        tag_re = re.compile(r'(<!--.*?-->|<[^>]*>)')
-        root = etree.parse(xmlfile).getroot()
-                            
-        findHelper = root.find(".//*[@name='online_sections']")
-        if findHelper is None:
-            return
-        tags = self._getTags(findHelper.get("content").replace(" ","").split(";"),
-                             is_multilabel, mapping, whitelist, blacklist)                           
-                
-        # Remove Empty Tags
-        if len(tags) == 0 :
-            return
-               
-        findHelper = root.find(".//*[@class='full_text']")
-        if findHelper is None:
-            return
-        text = ""
-        if no_text is False:
-            for p in findHelper.findall("p"):                               
-                # Remove well-formed tags, fixing mistakes by legitimate users
-                no_tags = tag_re.sub('', p.text)
-                text = text + no_tags.replace("''",'"') +"\n"
-                # add Absatz?
-                            
-        findHelper.find(".//hedline")
-        if findHelper is None:
-            return
-        title = findHelper[0].text
-        title = title.replace("''",'"')
+        return tags   
+                      
+    def _extractElements(self, xmlfile, no_text, is_multilabel, mapping, whitelist, blacklist, extractElements, ignore_tags):
+        #tag_re = re.compile(r'(<!--.*?-->|<[^>]*>)')
+        tree = etree.parse(xmlfile)
+        item = {}
         
-        return self._Item( title = title,
-                           tags = tags,
-                           text = text)
-    
+        data_fields = [f for f in self.DATA_FIELDS if f[0] in extractElements]
+        
+        for f in data_fields:
+            item_element = f[0].lower()
+            item[item_element] = item.get(item_element, None)
+            
+            #Retrieve from path
+            a = tree.xpath(f[3])
+            if f[2].lower() == 'single':
+                if len(a):
+                    if type(a[0]) == etree._Element:
+                        s = etree.tostring(a[0], method='text', encoding='unicode')
+                    else:
+                        s = a[0]
+                else:
+                    s = None
+            else:
+                s = []
+                for b in a:
+                    c = etree.tostring(b, method='text', encoding='unicode').strip()
+                    if c != '':
+                        s.append(c)
+                if s == []:
+                    s = None         
+            
+            if item_element == "tags" and not ignore_tags and s is not None:
+                item[item_element] = self._getTags(s.replace(" ","").split(";"),
+                             is_multilabel, mapping, whitelist, blacklist)
+            else:
+                item[item_element] = s
+                
+                
+            if item_element in ["tags"] and not item[item_element]:
+                return None
+
+        return namedtuple('Item', item.keys())(**item)
+        
     def crawlNYT(self, per_tag = 10, max_count = 1000, no_text = False, to_database = False, is_multilabel = True, 
                  mapping = [["Arts",["Books","Theater","Movies"]],
                             ["Business",["Automobile"]],
                             ["Politics",["Washington"]], 
-                            ["Opinion",["ThePublicEditor","Editors'Notes"]]], 
+                            ["Opinion",["ThePublicEditor"]]], 
                  whitelist = ["Arts", "Business", "Science", "Sports", "Technology", "Health", "Opinion", "Style", "Politics"],
-                 blacklist = ["PaidDeathNotices", "WeekInReview", "Corrections", "JobMarket"],
+                 blacklist = ["PaidDeathNotices", "WeekInReview", "Corrections", "JobMarket", "Editors'Notes"],
                  corpusPath = "/home/retkowski/nltk_data/nyt/",
-                 nytPaths = ["2007","2006","2005"]):   
+                 nytPaths = ["2007","2006","2005","2004","2003","2002","2001","2000","1999","1998","1997"],
+                 extractElements = ["Text","Locations","Names","Tags","Organizations","People","Titles"],
+                 ignore_tags = False):   
         """Read the NYT Corpus and write it to DB or Memory
 
         Keyword arguments:
@@ -100,40 +111,46 @@ class CorpusImporter(BaseImporter):
         whitelist -- Labels that should be accepted
         blacklist -- Labels that will be ignored
         nytPath -- filepath of the archive to crawl in
+        extractElements -- 
         """
         count_tags = {}
         counter = 0
+        if not ignore_tags:
+            max_count = len(whitelist) * per_tag
+            
+        print("Maximum Documents: ", str(max_count))
+        
         for nytPath in nytPaths:
             nytPath = corpusPath + nytPath
             archives = [archive for archive in os.listdir(nytPath) if os.path.isfile(os.path.join(nytPath, archive)) and not archive[0]== "."]
-            print("Reading archives:", archives)
+            print("Reading archives ["+nytPath+"]: ", archives)
             for archive in archives:
                 with tarfile.open(nytPath+"/"+archive) as afile:
                     for member in afile:
                         if member.isreg() and member.name.endswith('.xml'): # regular xml file
                             with closing(afile.extractfile(member)) as xmlfile:
 
-                                if counter is max_count :
+                                if counter >= max_count :
                                     return
 
-                                corpus_item = self._extractElements(xmlfile, no_text, is_multilabel, mapping, whitelist, blacklist)
+                                corpus_item = self._extractElements(xmlfile, no_text, is_multilabel, mapping, whitelist, blacklist, extractElements,ignore_tags)
 
                                 if corpus_item is None:
                                     continue
                                 
-                                joined_tags = ''.join(corpus_item.tags)
-                                
-                                
-                                count_tags[joined_tags] = count_tags.get(joined_tags, 0)
-                                
-                                if count_tags[joined_tags] is per_tag:
-                                    continue                                
-                                
-                                count_tags[joined_tags] += 1
-                                
-                                if to_database is True:  
-                                    self._db.insert(corpus_item._asdict())
-                                else : 
-                                    self._Collection.append(corpus_item)
+                                if not ignore_tags:
+                                    joined_tags = ''.join(corpus_item.tags)
 
-                                counter += 1
+
+                                    count_tags[joined_tags] = count_tags.get(joined_tags, 0)
+
+                                    if count_tags[joined_tags] >= per_tag:
+                                        continue
+                                    else:
+                                        count_tags[joined_tags] += 1
+                                
+                                counter = counter + 1
+                                if to_database:  
+                                    self._db.insert(corpus_item._asdict())
+                                else: 
+                                    self._Collection.append(corpus_item)

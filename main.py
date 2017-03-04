@@ -12,6 +12,8 @@ print(len(X_train), " Newspaper Articles in the Training Set")
 print(len(X_test), " Newspaper Articles in the Test Set")
 
 from sklearn.preprocessing import StandardScaler
+from sklearn.utils.extmath import randomized_svd
+from sklearn.utils import check_random_state
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.naive_bayes import MultinomialNB
@@ -33,13 +35,6 @@ from collections import Counter
 def words(text): return re.findall(r'\w+', text.lower())
 dictionary = Counter(words(open('/home/retkowski/Data/dicts/dict_all.txt').read()))
 
-import numpy as np
-import re
-from collections import Counter
-def words(text): return re.findall(r'\w+', text.lower())
-dictionary = Counter(words(open('/home/retkowski/Data/dicts/dict_all.txt').read()))
-
-
 #preprocessor = Preprocessor.Preprocessor(stopwords = stopwords.words('english'), stemmer = SnowballStemmer("english"))
 preprocessor = Preprocessor(stopwords = stopwords.words('english'), stemmer = SnowballStemmer("english"))
 
@@ -50,9 +45,23 @@ lv = LinguisticVectorizer()
 #pv = NamedEntityVectorizer.NamedEntityVectorizer(max_features=100, entity="PERSON")
 clf = MultinomialNB() # GaussianNB
 clf = LogisticRegression()
-svd = TruncatedSVD(n_components=900, n_iter=7, random_state=42)
+#svd = TruncatedSVD(n_components=900, n_iter=7, random_state=42)
 #select = SelectKBest(score_func=f_classif, k=750)
 #fit = test.fit(fu.fit_transform(X_train), Y_train)
+class NewSVD(TruncatedSVD):
+    def fit_transform(self, X, y=None):
+        if self.n_components < X.shape[1]:
+            return super().fit_transform(X, y)
+        else:
+            random_state = check_random_state(self.random_state)
+            U, Sigma, VT = randomized_svd(X, X.shape[1],
+                                          n_iter=self.n_iter,
+                                          random_state=random_state)
+            self.components_ = VT
+            #X_transformed = U * Sigma
+            return X.toarray()
+        
+svd = NewSVD(n_components=900, n_iter=7, random_state=42)
 
 class SelectAtMostKBest(SelectKBest):
 
@@ -93,10 +102,14 @@ pipeline = Pipeline([
 
 param_grid = [
     {
-        'k_best__k': [200,500,800,1000],
-        'dim_red__n_components': [100, 500, 900, 1200],
-        'features__ngram_tf_idf__counts__max_features': [500,800,1000,1200,1400],
-        'features__ngram_tf_idf__counts__ngram_range': [(1,1),(1,2),(1,3)]#,
+        #'k_best__k': [200,500,800,1000],
+        'k_best__k' : [800],
+        #'dim_red__n_components': [100, 500, 900, 1200],
+        'dim_red__n_components': [100, 600],
+        #'features__ngram_tf_idf__counts__max_features': [500,800,1000,1200,1400],
+        'features__ngram_tf_idf__counts__max_features': [500,800],
+        #'features__ngram_tf_idf__counts__ngram_range': [(1,1),(1,2),(1,3)],
+        'features__ngram_tf_idf__counts__ngram_range': [(1,1)]
         #'features__pv__person__max_features': [50,75,100,125,150]
     }
 ]
