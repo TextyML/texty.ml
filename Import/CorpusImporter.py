@@ -11,8 +11,9 @@ class CorpusImporter(BaseImporter):
     DATA_FIELDS  =  [                
                 ('Text', 'String', 'Single', '/nitf/body/body.content/block[@class="full_text"]'),
                 ('Tags', 'String', 'Single', '/nitf/head/meta[@name="online_sections"]/@content'),
-                ('OnlineTitles', 'String', 'Multiple', '/nitf/head/docdata/identified-content/object.title[@class="online_producer"]'), 
-                ('Titles', 'String', 'Multiple', '/nitf/head/docdata/identified-content/object.title[@class="indexing_service"]')
+                #('OnlineTitles', 'String', 'Multiple', '/nitf/head/docdata/identified-content/object.title[@class="online_producer"]'), 
+                #('Titles', 'String', 'Multiple', '/nitf/head/docdata/identified-content/object.title[@class="indexing_service"]')
+                ('Titles', 'String', 'Single', '/nitf/body[1]/body.head/hedline/hl1')
                 ]
     
     def __init__(self, path = '/home/retkowski/Private/newsDB.json'):
@@ -97,8 +98,8 @@ class CorpusImporter(BaseImporter):
                  whitelist = ["Arts", "Business", "Science", "Sports", "Technology", "Health", "Opinion", "Style", "Politics"],
                  blacklist = ["PaidDeathNotices", "WeekInReview", "Corrections", "JobMarket", "Editors'Notes"],
                  corpusPath = "/home/retkowski/nltk_data/nyt/",
-                 nytPaths = ["2007","2006","2005","2004","2003","2002","2001","2000","1999","1998","1997"],
-                 extractElements = ["Text","Locations","Names","Tags","Organizations","People","Titles"],
+                 nytPaths = ["2007","2006","2005","2004","2003","2002","2001","2000","1999","1998","1997","1996","1995","1994"],
+                 extractElements = ["Text","Tags","Titles"],
                  ignore_tags = False):   
         """Read the NYT Corpus and write it to DB or Memory
 

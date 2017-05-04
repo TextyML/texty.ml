@@ -48,6 +48,7 @@ coverage.xml
 # Translations
 *.mo
 *.pot
+*.pickle
 
 # Django stuff:
 *.log

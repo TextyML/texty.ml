@@ -1,4 +1,5 @@
 from nltk.tokenize import sent_tokenize, word_tokenize
+import string
 
 class Preprocessor():
     
@@ -6,6 +7,9 @@ class Preprocessor():
         self.stemmer = stemmer
         self.lemmatizer = lemmatizer
         self.stopwords = stopwords
+        
+    def _remove_punctuation(self, tokens):
+        return [w.translate(str.maketrans("", "", string.punctuation)) for w in tokens]
     
     def _tokenize(self, string):
         return word_tokenize(string)
@@ -27,6 +31,7 @@ class Preprocessor():
     
     def _process(self, string):
         tokens = self._tokenize(string)
+        tokens = self._remove_punctuation(tokens)
         tokens = self._filter_for_words(tokens)
         tokens = self._lowercase_words(tokens)
         if self.stopwords is not None:

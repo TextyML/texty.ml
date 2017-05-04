@@ -26,6 +26,10 @@ class LinguisticVectorizer(BaseEstimator):
              'number_of_nouns',
              'number_of_adjectives',
              'number_of_verbs',
+             'number_of_ex_there',
+             'number_of_foreign_words',
+             'number_of_modal_words',
+             'number_of_judging_adjectives',
              'number_of_numbers',
              'type_token_relation',
              'concentration_index',
@@ -72,7 +76,6 @@ class LinguisticVectorizer(BaseEstimator):
         return np.average(word_length_list)
     
     def is_number(self, s):
-        print(s)
         try:
             float(s)
             return True
@@ -89,18 +92,16 @@ class LinguisticVectorizer(BaseEstimator):
     
     def _get_number_of_numbers(self, string):
         return len([w for w in word_tokenize(string) if self.is_number(self.__remove_punctuation(w))])
-
-    def _get_number_of_nouns(self, string):
-        nouns = [a[0] for a in pos_tag(self.__filter(string)) if a[1] in ['NN', 'NNS', 'NNP', 'NNPS']]
-        return len(nouns) / self._get_text_length(string)
+    
+    def _get_number_of_tagged_words(self, string, tags):
+        tagged_words = [a[0] for a in pos_tag(self.__filter(string)) if a[1] in tags]
+        return len(tagged_words) / self._get_text_length(string)
     
     def _get_number_of_adjectives(self, string):
-        adjectives = [a[0] for a in pos_tag(self.__filter(string)) if a[1] in ['JJ', 'JJR', 'JJS']]
-        return len(adjectives) / self._get_text_length(string)
-   
+        return self._get_number_of_tagged_words(string,['JJ', 'JJR', 'JJS', 'RB', 'RBR', 'RBS'])
+       
     def _get_number_of_verbs(self, string):
-        verbs = [a[0] for a in pos_tag(self.__filter(string)) if a[1] in ['VB', 'VBD', 'VBG', 'VBN', 'VBP', 'VBZ']]
-        return len(verbs) / self._get_text_length(string)
+        return self._get_number_of_tagged_words(string,['VB', 'VBD', 'VBG', 'VBN', 'VBP', 'VBZ'])
     
     # Stopwords?
     def _get_ttr(self, string):
@@ -206,9 +207,13 @@ class LinguisticVectorizer(BaseEstimator):
         number_of_paragraphs = [self._get_number_of_paragraphs(d) for d in documents]
         average_length_of_sent = [self._get_average_sent_length(d) for d in documents]
         average_word_length = [self._get_average_word_length(d) for d in documents]
-        number_of_nouns = [self._get_number_of_nouns(d) for d in documents]
-        number_of_adjectives = [self._get_number_of_adjectives(d) for d in documents]
-        number_of_verbs = [self._get_number_of_verbs(d) for d in documents]
+        number_of_nouns = [self._get_number_of_tagged_words(d,['NN', 'NNS', 'NNP', 'NNPS']) for d in documents]
+        number_of_adjectives = [self._get_number_of_tagged_words(d,['JJ', 'JJR', 'JJS', 'RB', 'RBR', 'RBS']) for d in documents]
+        number_of_verbs = [self._get_number_of_tagged_words(d,['VB', 'VBD', 'VBG', 'VBN', 'VBP', 'VBZ']) for d in documents]
+        number_of_foreign_words = [self._get_number_of_tagged_words(d,['FW']) for d in documents]
+        number_of_modal_words = [self._get_number_of_tagged_words(d,['MD']) for d in documents]
+        number_of_judging_adjectives = [self._get_number_of_tagged_words(d,['JJR', 'JJS', 'RBR', 'RBS']) for d in documents]
+        number_of_ex_there = [self._get_number_of_tagged_words(d,['EX']) for d in documents]
         type_token_relation = [self._get_ttr(d) for d in documents]
         concentration_index = [self._get_nkoi(d,10,150) for d in documents]
         hapaxes_index = [self._get_hl(d) for d in documents]
@@ -232,6 +237,10 @@ class LinguisticVectorizer(BaseEstimator):
              number_of_nouns,
              number_of_adjectives,
              number_of_verbs,
+             number_of_ex_there,
+             number_of_foreign_words,
+             number_of_modal_words,
+             number_of_judging_adjectives,
              number_of_numbers,
              type_token_relation,
              concentration_index,
